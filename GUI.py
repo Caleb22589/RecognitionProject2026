@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel,QVBoxLayout, QHBoxLayout, QWidget,QPushButton, QFrame)
 from PyQt5.QtCore import Qt
 
-
+#Main Pyqt window for fast webcam and ecognition implementation
 class StatCard(QFrame):
     def __init__(self, title: str, initial: str = "—"):
         super().__init__()
