@@ -8,3 +8,9 @@ However for price to reduce the use of the internet, by using a price algorithm 
 So user can theoretically just show face until it verifies its real and then scan item and then just walk off if transaction completed successfully. Removing the absolute friction of a low value self checkout process (like foods). High value purcahses should require more verification in practice.
 
 Problems are mainly security, so i added a liveness detector that if the face is moving in a realistic pattern it would mark it as verified, this is not as accurate so the indicator is just used primarily for high value transactions only (theoretically)
+
+## Modules used
+
+I have mainly used PyQt5 for the GUI, as its faster than other alternatives like tkinter, however does have disadvantages of its very inefficient way of creating elements (takes atlesat 5 lines to create one button), so maybe create a class that makes it more simple to add UI elements to my interface.
+
+Pyzbar is a library primarly used to find barcodes and scan them.
