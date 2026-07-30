@@ -2,13 +2,13 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageTk
 import time
-## Choppy tkinter camera view, maybe use pyqt as it needs to be converted to PIL, which is slow
+## Choppy tkinter camera view, maybe use pyqt and open cv as it needs to be converted to PIL, which is slow
 class ChoppyCameraApp:
     def __init__(self, window, video_source=0):
         self.window = window
         self.window.title("Tkinter Camera")
         
-        self.video_source = video_source
+        self.video_source = video_source 
         self.vid = cv2.VideoCapture(self.video_source)
          
         self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
