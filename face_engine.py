@@ -51,8 +51,8 @@ def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
 
     ids = list(known_dict.keys())
     known_encodings = list(known_dict.values())
-    
-    # Built-in face_recognition function replaces custom np.linalg.norm math
+
+    # `face_recognition.face_distance` replaces custom np.linalg.norm math previously used. It returns a list of distances between the input encoding and each known encoding.
     dists = face_recognition.face_distance(known_encodings, encoding)
     best_idx = np.argmin(dists)
     best_dist = float(dists[best_idx])
@@ -68,7 +68,7 @@ def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
     """Return {'mar':..., 'ear':...} from a single frame, or None if no face."""
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     res = mp_face_mesh.process(rgb)
-    
+
     if not res.multi_face_landmarks:
         return None
 
@@ -92,35 +92,60 @@ def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
 
 @dataclass
 class LivenessTracker:
-    """Rolling\ buffer of mouth/eye used for anti-spoofing."""
-    
+    # 
+
     # deque(maxlen=X) automatically pops old frames when full - no manual list management!
     mars: deque = field(default_factory=lambda: deque(maxlen=config.LIVENESS_FRAME_WINDOW))
     ears: deque = field(default_factory=lambda: deque(maxlen=config.LIVENESS_FRAME_WINDOW))
     blinked: bool = False
+    verified: bool = False
 
     def add(self, metrics: dict):
+        if self.verified:
+            return  # nothing left to measure this transaction
         self.mars.append(metrics["mar"])
         self.ears.append(metrics["ear"])
         if metrics["ear"] < config.LIVENESS_BLINK_EAR:
             self.blinked = True
 
+    def reset(self):
+        """Clear everything for the next customer."""
+        self.mars.clear()
+        self.ears.clear()
+        self.blinked = False
+        self.verified = False
+
     def status(self) -> dict:
         n = len(self.mars)
+
+        # Already passed: hold the result rather than re-testing a stationary face.
+        if self.verified:
+            return {
+                "live": True,
+                "reason": "verified",
+                "frames": n,
+                "blinked": self.blinked,
+                "latched": True,
+            }
+
         if n < config.LIVENESS_MIN_FRAMES:
-            return {"live": False, "reason": "collecting", "frames": n}
+            return {"live": False, "reason": "collecting", "frames": n, "latched": False}
 
         var = statistics.pvariance(self.mars)
         moving = var >= config.LIVENESS_MAR_VARIANCE
         blink_ok = self.blinked or not config.LIVENESS_REQUIRE_BLINK
-        
+
         live = moving and blink_ok
         reason = "ok" if live else ("static_face" if not moving else "no_blink")
-        
+
+        if live:
+            self.verified = True  # latch the pass
+
         return {
-            "live": live, 
-            "reason": reason, 
-            "frames": n, 
+            "live": live,
+            "reason": reason,
+            "frames": n,
             "mar_variance": round(var, 6),
-            "blinked": self.blinked
+            "blinked": self.blinked,
+            "latched": False,
         }
