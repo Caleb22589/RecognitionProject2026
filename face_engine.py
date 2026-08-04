@@ -20,7 +20,7 @@ mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
     min_detection_confidence=0.5,
 )
 
-# ------------------------------------------------------------- image decoding
+# Image decoding
 def decode_data_url(data_url: str) -> np.ndarray:
     """'data:image/jpeg;base64,....' -> BGR numpy image."""
     if "," in data_url:
@@ -29,17 +29,16 @@ def decode_data_url(data_url: str) -> np.ndarray:
     return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
 
-# ------------------------------------------------------------------- QR codes
+# QR codes
 def decode_qr(bgr_img: np.ndarray) -> Optional[str]:
-    """Return the first QR payload found using PyZbar."""
+    # Decode a qR code from a BGR image. Returns the decoded string or none if no qr code is found.
     gray = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2GRAY)
     results = pyzbar_decode(gray)
     return results[0].data.decode("utf-8", errors="ignore") if results else None
 
-
-# --------------------------------------------------------------- face matching
+# face recognition and liveness detection
 def encode_face(bgr_img: np.ndarray) -> Optional[np.ndarray]:
-    """Return a single 128-d face encoding, or None if not exactly one face."""
+    # Return a 128-d face encoding for the first face found, or None if no face or multiple faces are found.
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     encs = face_recognition.face_encodings(rgb, model="hog")
     return encs[0] if len(encs) == 1 else None
@@ -56,26 +55,28 @@ def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
     dists = face_recognition.face_distance(known_encodings, encoding)
     best_idx = np.argmin(dists)
     best_dist = float(dists[best_idx])
-
+    # If the best distance is within the tolerance, return the corresponding user ID and confidence score. Otherwise, return None.
     if best_dist <= config.FACE_MATCH_TOLERANCE:
+        # Confidence is a simple linear mapping: 0 distance = 100% confidence, tolerance distance = 0% confidence. clamping to [0,1] to avoid negative confidence if the distance is slightly above tolerance.
         conf = max(0.0, 1.0 - (best_dist / config.FACE_MATCH_TOLERANCE))
         return {"user_id": ids[best_idx], "distance": best_dist, "confidence": round(conf, 3)}
     return None
 
 
-# ------------------------------------------------------------------- liveness
+# liveness
 def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
-    """Return {'mar':..., 'ear':...} from a single frame, or None if no face."""
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     res = mp_face_mesh.process(rgb)
 
     if not res.multi_face_landmarks:
+        # to make sure it doesn't use empty landmarks from previous frame, return None if no face is detected.
         return None
 
     h, w = bgr_img.shape[:2]
     lm = res.multi_face_landmarks[0].landmark
 
     # Helper to calculate euclidean distance between two landmark indices
+    # This is just enough for a comparision when subject opens mouth or blinks. We don't need to calculate it fully.
     def dist(p1, p2):
         return np.hypot((lm[p1].x - lm[p2].x) * w, (lm[p1].y - lm[p2].y) * h)
 
@@ -118,7 +119,7 @@ class LivenessTracker:
     def status(self) -> dict:
         n = len(self.mars)
 
-        # Already passed: hold the result rather than re-testing a stationary face.
+        # Already passed: hold the result rather than re testing same face.
         if self.verified:
             return {
                 "live": True,
