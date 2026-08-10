@@ -9,6 +9,8 @@ So user can theoretically just show face until it verifies its real and then sca
 
 Problems are mainly security, so i added a liveness detector that if the face is moving in a realistic pattern it would mark it as verified, this is not as accurate so the indicator is just used primarily for high value transactions only (theoretically)
 
+I like this idea as i want to experiment if truely just cameras on a phone/ or laptop are enough to replace dedicated self checkouts all together, and make things more seamless.
+
 ## How it works.
 
 IT takes a frame from the webcam and converts it from OpenCV's BGR colour order to RGB, which face_recognition and MediaPipe require.
