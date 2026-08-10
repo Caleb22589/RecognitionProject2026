@@ -19,10 +19,9 @@ except ImportError:  # keep the terminal usable even if config.py is missing
     config = None
 
 MIN_FRAMES = getattr(config, "LIVENESS_MIN_FRAMES", 30)
-QR_EVERY_N_FRAMES = 3          # QR decoding is the expensive step; throttle it
+QR_EVERY_N_FRAMES = 3          # QR decoding is high intensive
 CAMERA_INDEX = 0
 
-# Test aid: type a basket code instead of presenting one. Set False for a
 # terminal a real customer can reach. Ctrl+M hides/shows it at runtime.
 MANUAL_ENTRY = True
 
@@ -175,7 +174,7 @@ def draw_reticle(frame, colour_bgr):
     bw, bh = int(w * 0.52), int(h * 0.78)
     x1, y1 = (w - bw) // 2, (h - bh) // 2
     x2, y2 = x1 + bw, y1 + bh
-    arm = int(min(bw, bh) * 0.12)
+    arm = int(min(bw, bh) * 0.12) 
     t = 3
     for (cx, cy, dx, dy) in ((x1, y1, 1, 1), (x2, y1, -1, 1),
                              (x1, y2, 1, -1), (x2, y2, -1, -1)):
@@ -267,7 +266,7 @@ class CheckoutTerminal(QMainWindow):
         self.progress.setRange(0, MIN_FRAMES)
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
-        self.progress.setFixedHeight(6)
+        self.progress.setFixed    bHeight(6)
         column.addWidget(self.progress)
 
         column.addWidget(self._build_manual_panel())
@@ -351,6 +350,7 @@ class CheckoutTerminal(QMainWindow):
     def on_frame(self, frame):
         if not self.camera_ok:
             return
+        # 
 
         display = cv2.flip(frame, 1)                       # mirror for the customer
         colour = (151, 220, 61) if self.is_live else (65, 180, 242)  # BGR mint / amber
