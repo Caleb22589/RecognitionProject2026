@@ -38,11 +38,14 @@ def decode_qr(bgr_img: np.ndarray) -> Optional[str]:
 
 # face recognition and liveness detection
 def encode_face(bgr_img: np.ndarray) -> Optional[np.ndarray]:
+    # face_recognition expects RGB, but OpenCV loads images as BGR, so the swap here is required
     # Return a 128-d face encoding for the first face found, or None if no face or multiple faces are found.
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     encs = face_recognition.face_encodings(rgb, model="hog")
-    return encs[0] if len(encs) == 1 else None
-
+    if len(encs) == 1:
+        return encs[0]
+    else:
+        return None
 
 def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
     if not known_dict:
@@ -50,7 +53,7 @@ def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
 
     ids = list(known_dict.keys())
     known_encodings = list(known_dict.values())
-
+    
     # `face_recognition.face_distance` replaces custom np.linalg.norm math previously used. It returns a list of distances between the input encoding and each known encoding.
     dists = face_recognition.face_distance(known_encodings, encoding)
     best_idx = np.argmin(dists)
@@ -76,7 +79,7 @@ def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
     lm = res.multi_face_landmarks[0].landmark
 
     # Helper to calculate euclidean distance between two landmark indices
-    # This is just enough for a comparision when subject opens mouth or blinks. We don't need to calculate it fully.
+    # This is just enough for a comparision when subject opens mouth or blinks. don't need to calculate it fully.
     def dist(p1, p2):
         return np.hypot((lm[p1].x - lm[p2].x) * w, (lm[p1].y - lm[p2].y) * h)
 
@@ -120,7 +123,7 @@ class LivenessTracker:
         n = len(self.mars)
 
         # Already passed: hold the result rather than re testing same face.
-        if self.verified:
+        if self.verified
             return {
                 "live": True,
                 "reason": "verified",
