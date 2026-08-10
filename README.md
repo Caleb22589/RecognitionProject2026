@@ -23,6 +23,11 @@ The check uses the variance of the MAR rather than its average, because resting 
 
 A photo held to the camera gives an identical value every frame, so its variance is near zero and it fails. A blink is also "required", detected when the EAR drops below a threshold. Only if both pass is the face marked live, and that result isn't re-tested during the same transaction. Then transaction is allowed to proceed
 Usually only works if mouth is open.
+
+
+## Improvements
+
+Using mouth to verify transaction is kinda weird so calculate both EAR first and MAR as backup or altogether to make it more seamless
 ## Modules used
 
 I have mainly used PyQt5 for the GUI, as its faster than other alternatives like tkinter, however does have disadvantages of its very inefficient way of creating elements (takes atlesat 5 lines to create one button), so maybe create a class that makes it more simple to add UI elements to my interface.
