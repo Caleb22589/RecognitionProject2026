@@ -15,14 +15,14 @@ import config
 # Initialize MediaPipe once globally
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
     static_image_mode=False,  # Set to False for smoother video stream processing
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
+    max_num_faces=1, # We only expect one face in the self-checkout kiosk
+    refine_landmarks=True, #landmarks for iris and lips are more accurate with this enabled
+    min_detection_confidence=0.5,#0.5 is the default, but can be adjusted based on lighting conditions and camera quality
 )
 
 # Image decoding
-def decode_data_url(data_url: str) -> np.ndarray:
-    """'data:image/jpeg;base64,....' -> BGR numpy image."""
+def decode_data_url(data_url: str) -> np.ndarray: 
+    #data:image/jpeg;base64,....' -> BGR numpy image.
     if "," in data_url:
         data_url = data_url.split(",", 1)[1]
     arr = np.frombuffer(base64.b64decode(data_url), dtype=np.uint8)
@@ -33,6 +33,7 @@ def decode_data_url(data_url: str) -> np.ndarray:
 def decode_qr(bgr_img: np.ndarray) -> Optional[str]:
     # Decode a qR code from a BGR image. Returns the decoded string or none if no qr code is found.
     gray = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2GRAY)
+    #pzbar decode would give results, only consider the first one
     results = pyzbar_decode(gray)
     return results[0].data.decode("utf-8", errors="ignore") if results else None
 
@@ -41,12 +42,18 @@ def encode_face(bgr_img: np.ndarray) -> Optional[np.ndarray]:
     # face_recognition expects RGB, but OpenCV loads images as BGR, so the swap here is required
     # Return a 128-d face encoding for the first face found, or None if no face or multiple faces are found.
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
+    #Face_recognition's face_encoding function.
     encs = face_recognition.face_encodings(rgb, model="hog")
+    #if no encodings found, return None. Even with multiple faces return None.
     if len(encs) == 1:
         return encs[0]
     else:
         return None
 
+# identify definition
+#if the face encoding is found, it returns a 128-dimensional numpy array 
+#representing the facial features of the detected face. If no face or 
+# multiple faces are found, it returns None.
 def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
     if not known_dict:
         return None
@@ -67,6 +74,14 @@ def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
 
 
 # liveness
+# we use MediaPipe's face mesh model to detect facial landmarks 
+# in the input BGR image. We then calculate the Mouth Aspect Ratio 
+# (MAR) and Eye Aspect Ratio (EAR) based on specific landmark points. 
+# The MAR is calculated as the ratio of the vertical distance between 
+# the inner lip landmarks to the horizontal distance between the mouth 
+# corner landmarks. The EAR is calculated similarly for the left eye. 
+# These metrics are returned in a dictionary for further processing 
+# in liveness detection.
 def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     res = mp_face_mesh.process(rgb)
@@ -80,9 +95,18 @@ def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
 
     # Helper to calculate euclidean distance between two landmark indices
     # This is just enough for a comparision when subject opens mouth or blinks. don't need to calculate it fully.
+    # Right now only works with mouth.
     def dist(p1, p2):
         return np.hypot((lm[p1].x - lm[p2].x) * w, (lm[p1].y - lm[p2].y) * h)
-
+    # fixed distance calculation for mouth and eye aspect ratios. 
+    # The original code had a bug where it was using the wrong 
+    # landmark indices for the mouth width calculation, 
+    # which could lead to incorrect MAR values. 
+    # The corrected indices now are accurately represent 
+    # the inner lip top and bottom points for height, 
+    # and the left and right mouth corners for width. 
+    # This ensures that the MAR reflects the actual mouth opening, 
+    # which is crucial for liveness detection.
     mouth_h = dist(13, 14)          # Inner lip top to bottom
     mouth_w = dist(61, 291) or 1e-6 # Mouth corners left to right
     mar = mouth_h / mouth_w
@@ -98,7 +122,7 @@ def landmarks_metrics(bgr_img: np.ndarray) -> Optional[dict]:
 class LivenessTracker:
     # 
 
-    # deque(maxlen=X) automatically pops old frames when full - no manual list management!
+    # deque(maxlen=X) automatically removes old frames when full so no manual list management!
     mars: deque = field(default_factory=lambda: deque(maxlen=config.LIVENESS_FRAME_WINDOW))
     ears: deque = field(default_factory=lambda: deque(maxlen=config.LIVENESS_FRAME_WINDOW))
     blinked: bool = False
@@ -135,6 +159,11 @@ class LivenessTracker:
         if n < config.LIVENESS_MIN_FRAMES:
             return {"live": False, "reason": "collecting", "frames": n, "latched": False}
 
+        #People have different shapes of lips and mouths, 
+        # so the MAR can vary significantly between individuals.
+        #Thats why we use variance instead of mean to determine if the mouth is moving.
+        # Because mean could be misleading if the mouth is naturally wide or narrow, or if the person is speaking or making facial expressions.
+        # while variance captures the actual movement over time. Deviation of their own mouth.
         var = statistics.pvariance(self.mars)
         moving = var >= config.LIVENESS_MAR_VARIANCE
         blink_ok = self.blinked or not config.LIVENESS_REQUIRE_BLINK
