@@ -32,3 +32,7 @@ IDENTITY_HOLD_SECONDS = 4
 
 # Session buffers expire after this many seconds of inactivity.
 SESSION_TTL_SECONDS = 60
+
+# Encoding a face costs far more CPU than reading a frame, so we only attempt a
+# match every Nth frame. Higher = lighter load but slower to recognise someone.
+RECOGNISE_EVERY_N_FRAMES = 8

@@ -1,8 +1,10 @@
 import base64
+import json
 import statistics
+import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
@@ -147,7 +149,7 @@ class LivenessTracker:
         n = len(self.mars)
 
         # Already passed: hold the result rather than re testing same face.
-        if self.verified
+        if self.verified:
             return {
                 "live": True,
                 "reason": "verified",
@@ -182,3 +184,95 @@ class LivenessTracker:
             "blinked": self.blinked,
             "latched": False,
         }
+
+
+# identity stabilisation
+# One frame is not enough to log somebody in. A bad angle or a moment of motion
+# blur can push an encoding just over FACE_MATCH_TOLERANCE and drop the match, or
+# (worse) nudge it towards the wrong account. IdentityVoter only accepts an
+# account once it has won IDENTITY_MIN_VOTES of the last IDENTITY_WINDOW frames,
+# and then holds it for IDENTITY_HOLD_SECONDS so the name does not flicker while
+# the shopper looks down at their basket.
+@dataclass
+class IdentityVoter:
+    votes: deque = field(default_factory=lambda: deque(maxlen=config.IDENTITY_WINDOW))
+    locked_id: Optional[int] = None
+    last_seen: float = 0.0
+
+    def add(self, user_id: Optional[int]) -> Optional[int]:
+        """Record one frame's result and return the locked-in account, if any."""
+        self.votes.append(user_id)
+
+        if user_id is not None:
+            self.last_seen = time.time()
+
+        if self.locked_id is not None:
+            # Hold the current shopper until their face has been gone for a while.
+            if time.time() - self.last_seen > config.IDENTITY_HOLD_SECONDS:
+                self.reset()
+            return self.locked_id
+
+        # Count votes per candidate; ignore the None (no match) frames.
+        tally = {}
+        for vote in self.votes:
+            if vote is not None:
+                tally[vote] = tally.get(vote, 0) + 1
+
+        for candidate, count in tally.items():
+            if count >= config.IDENTITY_MIN_VOTES:
+                self.locked_id = candidate
+                return candidate
+        return None
+
+    def reset(self):
+        self.votes.clear()
+        self.locked_id = None
+        self.last_seen = 0.0
+
+
+def recognise(bgr_img: np.ndarray, known_dict: dict) -> Optional[dict]:
+    """Encode the face in this frame and match it against the enrolled accounts.
+
+    Returns identify()'s dict, or None when there is no usable face or no match.
+    """
+    if not known_dict:
+        return None
+    encoding = encode_face(bgr_img)
+    if encoding is None:
+        return None
+    return identify(encoding, known_dict)
+
+
+# basket codes
+def parse_basket(payload: str) -> Tuple[str, Optional[float]]:
+    """Split a scanned code into (basket code, total in dollars).
+
+    Three formats are accepted so the kiosk works with whatever the shop's label
+    printer produces:
+        {"basket": "B-1042", "total": 24.50}   JSON
+        B-1042|24.50                            pipe separated
+        B-1042                                  code only, total unknown
+    """
+    text = (payload or "").strip()
+    if not text:
+        return "", None
+
+    # JSON first, since a JSON payload could otherwise contain a "|".
+    if text.startswith("{"):
+        try:
+            data = json.loads(text)
+            code = str(data.get("basket") or data.get("code") or "").strip()
+            total = data.get("total", data.get("amount"))
+            return (code or text), (float(total) if total is not None else None)
+        except (ValueError, TypeError):
+            return text, None
+
+    for separator in ("|", ";"):
+        if separator in text:
+            code, _, amount = text.partition(separator)
+            try:
+                return code.strip(), float(amount.strip())
+            except ValueError:
+                return code.strip(), None
+
+    return text, None
