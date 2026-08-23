@@ -12,7 +12,7 @@ I like this idea as i want to experiment if truely just cameras on a phone/ or l
 ## How it works.
 
 IT takes a frame from the webcam and converts it from OpenCV's BGR colour order to RGB, which face_recognition and MediaPipe require.
-A blink is detected when EAR drops below a threshold and recorded ( seen with opening and closing mouth), but it's currently switched off as a requirement (LIVENESS_REQUIRE_BLINK = False) — only mouth movement decides liveness. Enabling it is a one-line change.
+A blink is detected when EAR drops below a threshold and recorded ( seen with opening and closing mouth), but it's currently switched off as a requirement (LIVENESS_REQUIRE_BLINK = False) only mouth movement decides liveness and Enabling it is a one-line change.
 For identification, face_recognition detects the face and produces a 128-number encoding of it. That encoding is compared against every stored encoding, and the closest match within the tolerance is returned as the user.
 
 For liveness, MediaPipe Face Mesh returnslandmark points on the face. From fixed landmark indices I calculate two ratios: the mouth aspect ratio (mouth height ÷ width) and the eye aspect ratio (eye height ÷ width). These are collected certain window of webcam frames.
