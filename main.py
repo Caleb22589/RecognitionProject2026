@@ -506,6 +506,13 @@ class CheckoutTerminal(QMainWindow):
             self.video.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def on_qr(self, payload, manual=False):
+        # A top up voucher adds credit rather than paying for a basket, so it is
+        # handled first and never reaches the basket code path.
+        topup = backend.parse_topup(payload)
+        if topup is not None:
+            self.redeem_topup(topup, manual)
+            return
+
         self.qr_value = payload
         code, total = backend.parse_basket(payload)
         self.basket_code = code or payload
@@ -694,6 +701,58 @@ class CheckoutTerminal(QMainWindow):
             self.banner.setText(text)
             self.banner.setProperty("tone", tone)
             self._repolish(self.banner)
+
+    @staticmethod
+    def clean_topup(value):
+        # Return a usable top up amount, or None if it is not credit the kiosk
+        # will add. db.top_up() rejects these too, but a voucher should be turned
+        # away with a message rather than raising.
+        try:
+            amount = float(value)
+        except (TypeError, ValueError):
+            return None
+        if amount != amount:                        # NaN
+            return None
+        limit = getattr(config, "MAX_TOPUP_DOLLARS", 200.00)
+        if amount <= 0 or amount > limit:
+            return None
+        return amount
+
+    def redeem_topup(self, dollars, manual=False):
+        # Add credit to the recognised shopper from a scanned top up voucher.
+        if self.account is None:
+
+            self.log("Top up voucher scanned, but nobody is recognised yet. " "Look at the camera first.")
+            
+            return
+
+        amount = self.clean_topup(dollars)
+        if amount is None:
+            limit = getattr(config, "MAX_TOPUP_DOLLARS", 200.00)
+            self.log(f"Top up voucher rejected: {dollars} is not an amount this "
+                     f"kiosk adds (limit {db.format_money(int(round(limit * 100)))}).")
+            return
+
+        try:
+            result = db.top_up(self.account["id"], amount)
+        except db.AccountError as error:
+            self.log(f"Top up failed: {error}")
+            return
+
+        # Re-read the account so the balance on screen is the one in the database.
+        self.account = db.get_customer(self.account["id"])
+
+        if manual:
+            source = "entered manually"
+        else:
+            source = "scanned"
+        self.log(f"Top up voucher {source}: added "
+                 f"{db.format_money(int(round(amount * 100)))} to "
+                 f"{self.account['name']}'s credit. New balance: "
+                 f"{db.format_money(result['balance_cents'])}")
+
+        self.show_account()
+        self.refresh_state()
 
     def complete_checkout(self):
         # Take the basket total out of the recognised shopper's stored credit.
