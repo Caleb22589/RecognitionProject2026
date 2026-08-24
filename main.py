@@ -318,7 +318,7 @@ class CheckoutTerminal(QMainWindow):
 
         column.addWidget(shell, 1)
 
-        self.hint = QLabel("Hold the code steady inside the brackets, then look at the camera.")
+        self.hint = QLabel("Hold the code steady inside the brackets, then look at the camera. Open mouth to verify liveness.")
         self.hint.setObjectName("hint")
         column.addWidget(self.hint)
         return column
