@@ -1,10 +1,9 @@
-"""SQLite storage for the kiosk: customer accounts, face encodings and store credit.
-
-Money is stored as whole CENTS in an INTEGER column, never as a float. Floats
-cannot represent values like 0.10 exactly, so repeatedly adding and subtracting
-them slowly drifts a balance away from the true amount. Dollars are only used at
-the edges of this module, where a human reads them.
-"""
+# Using SQLite storage for the kiosk: customer accounts, face encodings and store credit.
+#
+# Money is stored as whole CENTS in an INTEGER column, never as a float. Floats
+# cannot represent values like 0.10 exactly,
+# adding and subtracting them drifts the balance away from the true amount.
+# Dollars are only used at the edges of this module, where a human reads them.
 import sqlite3
 import time
 
@@ -12,11 +11,12 @@ import numpy as np
 
 import config
 
-# A face_recognition encoding is always 128 doubles. Anything else is corrupt.
+# A face_recognition encoding is always 128 doubles. Anything else would be  corrupt.
 ENCODING_LENGTH = 128
 ENCODING_DTYPE = np.float64
 
 # Boundaries for user supplied values.
+#Named these better
 MIN_NAME_LENGTH = 2
 MAX_NAME_LENGTH = 64
 MAX_TRANSACTION_DOLLARS = 500.00
@@ -42,20 +42,21 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE INDEX IF NOT EXISTS idx_tx_customer ON transactions (customer_id);
 """
+# organised classes to their corresponding points
 
-
-# errors -------------------------------------------------------------------
+# errors 
 class AccountError(Exception):
-    """Anything the kiosk should show the customer rather than crash on."""
+    # Anything the kiosk should show the customer rather than crash on.
+    pass
 
 
 class InsufficientCredit(AccountError):
     pass
 
 
-# connection ---------------------------------------------------------------
+# connection 
 def connect() -> sqlite3.Connection:
-    """Open the kiosk database with foreign keys on and rows accessible by name."""
+    # Open the kiosk database with foreign keys on and rows accessible by name.
     conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -63,14 +64,14 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create the tables if they do not exist yet. Safe to call on every start."""
+    # Create the tables if they do not exist yet.
     with connect() as conn:
         conn.executescript(SCHEMA)
 
 
-# encoding <-> blob --------------------------------------------------------
+# encoding <-> blob 
 def encoding_to_blob(encoding: np.ndarray) -> bytes:
-    """Pack a 128-d encoding into raw bytes for the BLOB column."""
+    # Pack a 128d encoding into raw bytes for the BLOB column.
     arr = np.asarray(encoding, dtype=ENCODING_DTYPE)
     if arr.shape != (ENCODING_LENGTH,):
         raise AccountError(f"Face encoding must be {ENCODING_LENGTH} values, got {arr.shape}")
@@ -78,16 +79,16 @@ def encoding_to_blob(encoding: np.ndarray) -> bytes:
 
 
 def blob_to_encoding(blob: bytes) -> np.ndarray:
-    """Unpack a stored BLOB back into a 128-d encoding."""
+    # Unpack a stored BLOb back into a 128d encoding.
     arr = np.frombuffer(blob, dtype=ENCODING_DTYPE)
     if arr.shape != (ENCODING_LENGTH,):
         raise AccountError("Stored face encoding is corrupt")
     return arr
 
 
-# validation ---------------------------------------------------------------
+# validation 
 def clean_name(name: str) -> str:
-    """Trim and length-check a customer name before it reaches the database."""
+    #Trim and length-check a customer name before it reaches the database.
     cleaned = " ".join(str(name).split())  # collapse runs of whitespace
     if len(cleaned) < MIN_NAME_LENGTH:
         raise AccountError(f"Name must be at least {MIN_NAME_LENGTH} characters")
@@ -97,37 +98,44 @@ def clean_name(name: str) -> str:
 
 
 def to_cents(dollars: float) -> int:
-    """Convert dollars to whole cents, rejecting anything that isn't sane money.
+   # Convert dollars to whole cents, rejecting anything that isn't sane money.
 
-    round() before int() matters: 24.35 * 100 is 2434.9999... in binary floating
-    point, so int() alone would silently charge a cent less.
-    """
+    #round() before integer matters: 24.35 * 100 is 2434.9999. in float
+    #point so int() alone would silently charge a cent less.
     try:
         value = float(dollars)
     except (TypeError, ValueError):
-        raise AccountError("Amount is not a number")
+        raise AccountError("Amount is not a number.")
     if value != value or value in (float("inf"), float("-inf")):  # NaN / infinity
         raise AccountError("Amount is not a number")
     if value <= 0:
-        raise AccountError("Amount must be greater than zero")
+        raise AccountError("Amount Must be greater than zero")
     if value > MAX_TRANSACTION_DOLLARS:
         raise AccountError(f"Amount is above the {config.CURRENCY}{MAX_TRANSACTION_DOLLARS:.2f} kiosk limit")
     return int(round(value * 100))
 
 
 def format_money(cents: int) -> str:
-    """Render whole cents as a display string, e.g. 2035 -> '$20.35'."""
+    # Render whole cents as a display string, e.g. 2035 -> '$20.35'.
     return f"{config.CURRENCY}{cents / 100:.2f}"
 
 
-# customers ----------------------------------------------------------------
+# customers 
 def create_customer(name: str, encoding: np.ndarray, opening_balance: float = None) -> dict:
-    """Enrol a new shopper with their face encoding and a starting balance."""
+    # Enrol a new shopper with their face encoding and a starting balance.
     name = clean_name(name)
     blob = encoding_to_blob(encoding)
-    dollars = config.SIGNUP_BONUS if opening_balance is None else opening_balance
-    cents = to_cents(dollars) if dollars > 0 else 0
+    
+    if opening_balance is None:
+        dollars = config.SIGNUP_BONUS
+    else:
+        dollars = opening_balance
 
+    if dollars > 0:
+        cents = to_cents(dollars)
+    else:
+        cents = 0
+    #using with instead of not 
     with connect() as conn:
         cur = conn.execute(
             "INSERT INTO customers (name, balance_cents, encoding, created_at) VALUES (?, ?, ?, ?)",
@@ -144,7 +152,7 @@ def create_customer(name: str, encoding: np.ndarray, opening_balance: float = No
 
 
 def get_customer(customer_id: int) -> dict:
-    """Look up one shopper. Raises if the id is not in the database."""
+    # Look up one shopper. Raises if the id is not in the database.
     with connect() as conn:
         row = conn.execute(
             "SELECT id, name, balance_cents, created_at FROM customers WHERE id = ?",
@@ -156,11 +164,10 @@ def get_customer(customer_id: int) -> dict:
 
 
 def load_known_encodings() -> dict:
-    """Return {customer_id: encoding} for every enrolled shopper.
-
-    face_engine.identify() takes exactly this shape, so the kiosk loads it once
-    at start up and refreshes it whenever somebody new enrols.
-    """
+    # Return {customer_id: encoding} for every enrolled shopper.
+    #
+    # face_engine.identify() takes this same thing, so the kiosk loads it once
+    # at start up and refreshes it whenever somebody new enrols.
     known = {}
     with connect() as conn:
         for row in conn.execute("SELECT id, encoding FROM customers"):
@@ -176,14 +183,13 @@ def count_customers() -> int:
         return conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
 
 
-# money --------------------------------------------------------------------
+# money 
 def charge(customer_id: int, dollars: float, basket_code: str = None) -> dict:
-    """Take money off a shopper's credit and record the transaction.
-
-    The read of the balance and the write of the new balance happen inside one
-    IMMEDIATE transaction, so two tills cannot both read "$20 left" and each
-    approve a $15 basket.
-    """
+    # Take money off a shopper's credit and record the transaction.
+    #
+    # The read of the balance and the write of the new balance happen inside one
+    # IMMEDIATE transaction so two cannot both read "$20 left" and each
+    # approve a $15 basket.
     cents = to_cents(dollars)
 
     conn = connect()
@@ -219,7 +225,7 @@ def charge(customer_id: int, dollars: float, basket_code: str = None) -> dict:
 
 
 def top_up(customer_id: int, dollars: float) -> dict:
-    """Add credit to an account (used for testing and for a future top-up screen)."""
+    # Add credit to an account (used for testing and for a future top-up screen).
     cents = to_cents(dollars)
 
     conn = connect()

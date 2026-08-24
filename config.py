@@ -1,4 +1,4 @@
-"""Central configuration for the self-checkout kiosk."""
+# Central configuration for the self-checkout kiosk.
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,3 +36,19 @@ SESSION_TTL_SECONDS = 60
 # Encoding a face costs far more CPU than reading a frame, so we only attempt a
 # match every Nth frame. Higher = lighter load but slower to recognise someone.
 RECOGNISE_EVERY_N_FRAMES = 8
+
+# Decoding a barcode is cheaper than encoding a face but still not free, so the
+# scanner also runs on every Nth frame rather than on all of them.
+QR_EVERY_N_FRAMES = 3
+
+# ---- Camera ----
+CAMERA_INDEX = 0                  # 0 is the built in webcam on most laptops
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
+CAMERA_RETRY_MS = 30              # pause before retrying after a dropped frame
+
+# ---- Window ----
+WINDOW_WIDTH = 1180
+WINDOW_HEIGHT = 720
+LOG_MAX_LINES = 300               # activity log keeps only the most recent lines
+WORKER_SHUTDOWN_MS = 2000         # how long to wait for the camera thread to stop

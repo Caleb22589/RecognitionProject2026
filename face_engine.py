@@ -17,7 +17,7 @@ import config
 # Initialize MediaPipe once globally
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
     static_image_mode=False,  # Set to False for smoother video stream processing
-    max_num_faces=1, # We only expect one face in the self-checkout kiosk
+    max_num_faces=1, # We only expect one face in the selfcheckout kiosk
     refine_landmarks=True, #landmarks for iris and lips are more accurate with this enabled
     min_detection_confidence=0.5,#0.5 is the default, but can be adjusted based on lighting conditions and camera quality
 )
@@ -37,12 +37,15 @@ def decode_qr(bgr_img: np.ndarray) -> Optional[str]:
     gray = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2GRAY)
     #pzbar decode would give results, only consider the first one
     results = pyzbar_decode(gray)
-    return results[0].data.decode("utf-8", errors="ignore") if results else None
+    if results:
+        return results[0].data.decode("utf-8", errors="ignore")
+    else:
+        return None
 
 # face recognition and liveness detection
 def encode_face(bgr_img: np.ndarray) -> Optional[np.ndarray]:
     # face_recognition expects RGB, but OpenCV loads images as BGR, so the swap here is required
-    # Return a 128-d face encoding for the first face found, or None if no face or multiple faces are found.
+    # Return a 128d face encoding for the first face found, or None if no face or multiple faces are found.
     rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
     #Face_recognition's face_encoding function.
     encs = face_recognition.face_encodings(rgb, model="hog")
@@ -53,7 +56,7 @@ def encode_face(bgr_img: np.ndarray) -> Optional[np.ndarray]:
         return None
 
 # identify definition
-#if the face encoding is found, it returns a 128-dimensional numpy array 
+#if the face encoding is found, it returns a 128d dimensional numpy array 
 #representing the facial features of the detected face. If no face or 
 # multiple faces are found, it returns None.
 def identify(encoding: np.ndarray, known_dict: dict) -> Optional[dict]:
@@ -139,7 +142,7 @@ class LivenessTracker:
             self.blinked = True
 
     def reset(self):
-        """Clear everything for the next customer."""
+        # Clear everything for the next customer.
         self.mars.clear()
         self.ears.clear()
         self.blinked = False
@@ -171,7 +174,12 @@ class LivenessTracker:
         blink_ok = self.blinked or not config.LIVENESS_REQUIRE_BLINK
 
         live = moving and blink_ok
-        reason = "ok" if live else ("static_face" if not moving else "no_blink")
+        if live:
+            reason = "ok"
+        elif not moving:
+            reason = "static_face"
+        else:
+            reason = "no_blink"
 
         if live:
             self.verified = True  # latch the pass
@@ -200,7 +208,7 @@ class IdentityVoter:
     last_seen: float = 0.0
 
     def add(self, user_id: Optional[int]) -> Optional[int]:
-        """Record one frame's result and return the locked-in account, if any."""
+        # Record one frame's result and return the locked-in account, if any.
         self.votes.append(user_id)
 
         if user_id is not None:
@@ -231,10 +239,9 @@ class IdentityVoter:
 
 
 def recognise(bgr_img: np.ndarray, known_dict: dict) -> Optional[dict]:
-    """Encode the face in this frame and match it against the enrolled accounts.
-
-    Returns identify()'s dict, or None when there is no usable face or no match.
-    """
+    # Encode the face in this frame and match it against the enrolled accounts.
+    #
+    # Returns identify()'s dict, or None when there is no usable face or no match
     if not known_dict:
         return None
     encoding = encode_face(bgr_img)
@@ -245,27 +252,42 @@ def recognise(bgr_img: np.ndarray, known_dict: dict) -> Optional[dict]:
 
 # basket codes
 def parse_basket(payload: str) -> Tuple[str, Optional[float]]:
-    """Split a scanned code into (basket code, total in dollars).
-
-    Three formats are accepted so the kiosk works with whatever the shop's label
-    printer produces:
-        {"basket": "B-1042", "total": 24.50}   JSON
-        B-1042|24.50                            pipe separated
-        B-1042                                  code only, total unknown
-    """
+    # Split a scanned code into (basket code, total in dollars).
+    #
+    # Three formats are accepted so the kiosk works with whatever the shop's label
+    # printer produces:
+    #     {"basket": "B-1042", "total': 24.50}   jSON
+    #     B-1042|24.50                            pipe separated
+    #     B-1042                                  code only, total unknown./
     text = (payload or "").strip()
     if not text:
         return "", None
 
     # JSON first, since a JSON payload could otherwise contain a "|".
     if text.startswith("{"):
+        # Parsing the JSON and reading the total are two separate failures and
+        # must be caught separately. If they share one try block, a well formed
+        # code carrying a junk total falls into the same handler as unreadable
+        # JSON, and the basket code is thrown away with it.
         try:
             data = json.loads(text)
-            code = str(data.get("basket") or data.get("code") or "").strip()
-            total = data.get("total", data.get("amount"))
-            return (code or text), (float(total) if total is not None else None)
-        except (ValueError, TypeError):
+        except ValueError:
             return text, None
+
+        code = str(data.get("basket") or data.get("code") or "").strip()
+        if not code:
+            code = text
+
+        total = data.get("total", data.get("amount"))
+        if total is None:
+            return code, None
+
+        try:
+            return code, float(total)
+        except (ValueError, TypeError):
+            # A code we can read carrying a price we cannot. Keep the code and
+            # let the customer type the total, exactly as the pipe format does.
+            return code, None
 
     for separator in ("|", ";"):
         if separator in text:

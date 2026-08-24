@@ -1,10 +1,15 @@
-"""Tests for the account and credit database.
-
-Run with:  python3 test_db.py
-Uses a throwaway database file so the real kiosk.db is never touched.
-"""
+# Tests for the account and credit database.
+#
+# Run with:  python3 test_db.py
+# Uses a throwaway database file so the real kiosk.db is never touched.
 import os
+import sys
 import tempfile
+
+# The tests live in tests/, one level below the modules they import, so the
+# project root has to go on the import path before config, db, face_engine or
+# main can be found.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
@@ -32,7 +37,7 @@ def check(description, condition):
 
 
 def expect_error(description, func, *args, **kwargs):
-    """Assert that a call is rejected rather than quietly accepted."""
+    # Assert that a call is rejected rather than quietly accepted.
     try:
         func(*args, **kwargs)
     except db.AccountError as error:
@@ -42,7 +47,7 @@ def expect_error(description, func, *args, **kwargs):
 
 
 def fake_encoding(seed):
-    """A deterministic stand-in for a 128-d face encoding."""
+    # A deterministic stand-in for a 128-d face encoding.
     return np.random.default_rng(seed).random(db.ENCODING_LENGTH)
 
 
@@ -113,7 +118,10 @@ def main():
           db.get_customer(alice["id"])["balance_cents"] == balance_before)
 
     print(f"\n{PASSED} passed, {FAILED} failed")
-    return 1 if FAILED else 0
+    if FAILED:
+        return 1
+    else:
+        return 0
 
 
 if __name__ == "__main__":

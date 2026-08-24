@@ -1,13 +1,12 @@
-"""Tests for the checkout flow: recognise a face, log in, pay from stored credit.
-
-Run with:  python3 test_checkout_flow.py
-No camera is needed. VisionWorker.run is replaced with a no-op and the signal
-handlers are called directly, which is what the camera thread would do anyway.
-Qt runs offscreen so no window appears.
-"""
+# Tests for the checkout flow: recognise a face, log in, pay from stored credit.
+#
+# Run with:  python3 test_checkout_flow.py
+# No camera is needed. 
 import os
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -43,7 +42,7 @@ def fake_encoding(seed):
 
 
 def look_at_camera(terminal, customer_id, confidence=0.9):
-    """Stand in for the worker: a live face that matched an account."""
+    # Stand in for the worker: a live face that matched an account.
     terminal.on_liveness({"live": True, "reason": "ok", "frames": config.LIVENESS_MIN_FRAMES})
     terminal.on_identity({"user_id": customer_id, "confidence": confidence})
 
@@ -121,7 +120,10 @@ def run_tests():
 
     terminal.worker.stop()
     print(f"\n{PASSED} passed, {FAILED} failed")
-    return 1 if FAILED else 0
+    if FAILED:
+        return 1
+    else:
+        return 0
 
 
 if __name__ == "__main__":

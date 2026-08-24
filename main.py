@@ -20,24 +20,33 @@ except ImportError:  # keep the terminal usable even if config.py is missing
     config = None
 
 MIN_FRAMES = getattr(config, "LIVENESS_MIN_FRAMES", 30)
-QR_EVERY_N_FRAMES = 3          # QR decoding is high intensive
+QR_EVERY_N_FRAMES = getattr(config, "QR_EVERY_N_FRAMES", 3)
 RECOGNISE_EVERY_N_FRAMES = getattr(config, "RECOGNISE_EVERY_N_FRAMES", 8)
-CAMERA_INDEX = 0
+CAMERA_INDEX = getattr(config, "CAMERA_INDEX", 0)
+CAMERA_WIDTH = getattr(config, "CAMERA_WIDTH", 1280)
+CAMERA_HEIGHT = getattr(config, "CAMERA_HEIGHT", 720)
+CAMERA_RETRY_MS = getattr(config, "CAMERA_RETRY_MS", 30)
+WINDOW_WIDTH = getattr(config, "WINDOW_WIDTH", 1180)
+WINDOW_HEIGHT = getattr(config, "WINDOW_HEIGHT", 720)
+LOG_MAX_LINES = getattr(config, "LOG_MAX_LINES", 300)
+WORKER_SHUTDOWN_MS = getattr(config, "WORKER_SHUTDOWN_MS", 2000)
 
 # terminal a real customer can reach. Ctrl+M hides/shows it at runtime.
 MANUAL_ENTRY = True
 
-# palette -----------------------------------------------------------------
-INK        = "#0E1116"
-PANEL      = "#161A22"
-LINE       = "#242A35"
-TEXT       = "#E6EAF2"
-MUTED      = "#828C9F"
-MINT       = "#3DDC97"
-AMBER      = "#F2B441"
-CORAL      = "#F0685F"
+# palette having neutral colouring
 
-STATE_COLORS = {"idle": MUTED, "wait": AMBER, "ok": MINT, "bad": CORAL}
+INK        = "#F2F2F2"      # window background
+PANEL      = "#FFFFFF"      # cards and panels
+SHELL      = "#E6E6E6"      # area behind the camera image
+LINE       = "#C6C6C6"      # borders
+TEXT       = "#1E1E1E"
+MUTED      = "#6E6E6E"
+GREEN      = "#3F6B4A"      # verified / ready
+BROWN      = "#7A6535"      # waiting on the customer
+RED        = "#8C4A45"      # something is wrong
+
+STATE_COLORS = {"idle": MUTED, "wait": BROWN, "ok": GREEN, "bad": RED}
 
 REASON_TEXT = {
     "collecting": "Reading facial motion",
@@ -48,9 +57,9 @@ REASON_TEXT = {
 }
 
 
-# worker threading -----------------------------------------------------------
+# worker threading 
 class VisionWorker(QThread):
-    """Owns the camera. Emits frames and analysis results to the GUI thread."""
+    # Owns the camera. Emits frames and analysis results to the GUI thread.
 
     frame_ready = pyqtSignal(object)      # BGR ndarray
     qr_found = pyqtSignal(str)
@@ -74,13 +83,13 @@ class VisionWorker(QThread):
         self._lock.unlock()
 
     def request_enrol(self):
-        """Ask for the next frame's face encoding, for signing a new shopper up."""
+        # Ask for the next frame's face encoding, for signing a new shopper up.
         self._lock.lock()
         self._enrol_requested = True
         self._lock.unlock()
 
     def set_known(self, known):
-        """Swap in a fresh {customer_id: encoding} map after somebody enrols."""
+        # Swap in a fresh {customer_id: encoding} map after somebody enrols.
         self._lock.lock()
         self._known = dict(known)
         self._lock.unlock()
@@ -113,8 +122,8 @@ class VisionWorker(QThread):
                              "Connect a device and restart the terminal.")
             return
 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
 
         tracker = backend.LivenessTracker()
         voter = backend.IdentityVoter()
@@ -124,7 +133,7 @@ class VisionWorker(QThread):
         while self._running:
             ok, frame = cap.read()
             if not ok:
-                self.msleep(30)
+                self.msleep(CAMERA_RETRY_MS)
                 continue
 
             if self._take_reset_flag():
@@ -166,7 +175,10 @@ class VisionWorker(QThread):
                         match = backend.recognise(frame, known)
                     except Exception:
                         match = None
-                    locked = voter.add(match["user_id"] if match else None)
+                    if match:
+                        locked = voter.add(match["user_id"])
+                    else:
+                        locked = voter.add(None)
                     if locked is not None:
                         self.identity.emit(match or {"user_id": locked})
 
@@ -187,7 +199,7 @@ class VisionWorker(QThread):
 
 # small widgets 
 class StatusRow(QFrame):
-    """One line of terminal state: coloured dot, label, current value."""
+    # One line of terminal state: coloured dot, label, current value.
 
     def __init__(self, label, placeholder, parent=None):
         super().__init__(parent)
@@ -218,13 +230,13 @@ class StatusRow(QFrame):
 
     def set_state(self, state, text):
         colour = STATE_COLORS[state]
-        self.dot.setStyleSheet(f"background:{colour}; border-radius:5px;")
+        self.dot.setStyleSheet(f"background:{colour}; border-radius:5px;") # border radius to make borders more rounded.
         self.value.setStyleSheet(f"color:{colour};")
         self.value.setText(text)
 
 
 def draw_reticle(frame, colour_bgr):
-    """Corner brackets marking the scan area — feedback without hiding the face."""
+    # Corner brackets marking the scan area feedback without hiding the face.
     h, w = frame.shape[:2]
     bw, bh = int(w * 0.52), int(h * 0.78)
     x1, y1 = (w - bw) // 2, (h - bh) // 2
@@ -253,7 +265,7 @@ class CheckoutTerminal(QMainWindow):
         self.known_faces = db.load_known_encodings()
 
         self.setWindowTitle("Self-Service Checkout")
-        self.resize(1180, 720)
+        self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setMinimumSize(980, 620)
 
         root = QWidget()
@@ -327,7 +339,7 @@ class CheckoutTerminal(QMainWindow):
         column.addWidget(self.qr_row)
         column.addWidget(self.live_row)
         column.addWidget(self.account_row)
-
+        #progress bar
         self.progress = QProgressBar()
         self.progress.setRange(0, MIN_FRAMES)
         self.progress.setValue(0)
@@ -350,7 +362,7 @@ class CheckoutTerminal(QMainWindow):
 
         self.log_box = QPlainTextEdit()
         self.log_box.setReadOnly(True)
-        self.log_box.document().setMaximumBlockCount(300)
+        self.log_box.document().setMaximumBlockCount(LOG_MAX_LINES)
         column.addWidget(self.log_box, 1)
 
         self.btn_finish = QPushButton("Complete checkout")
@@ -368,7 +380,7 @@ class CheckoutTerminal(QMainWindow):
         return column
 
     def _build_manual_panel(self):
-        """Keyboard entry standing in for a physical code, for testing."""
+        # Keyboard entry standing in for a physical code, for testing.
         panel = QFrame()
         panel.setObjectName("testCard")
 
@@ -382,15 +394,7 @@ class CheckoutTerminal(QMainWindow):
 
         row = QHBoxLayout()
         row.setSpacing(8)
-
-        self.manual_input = QLineEdit()
-        self.manual_input.setPlaceholderText("Type a basket code")
-        self.manual_input.setMaxLength(128)
-        self.manual_input.setMinimumHeight(38)
-        self.manual_input.returnPressed.connect(self.submit_manual_code)
-        row.addWidget(self.manual_input, 1)
-
-        # A code on its own carries no price, so the total can be typed here.
+         # A code on its own carries no price, so the total can be typed here.
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("Total")
         self.amount_input.setMaxLength(10)
@@ -399,6 +403,15 @@ class CheckoutTerminal(QMainWindow):
         self.amount_input.returnPressed.connect(self.submit_manual_code)
         self.amount_input.textChanged.connect(self.on_amount_typed)
         row.addWidget(self.amount_input)
+
+        
+        self.manual_input = QLineEdit()
+        self.manual_input.setPlaceholderText("Type a basket code")
+        self.manual_input.setMaxLength(128)
+        self.manual_input.setMinimumHeight(38)
+        self.manual_input.returnPressed.connect(self.submit_manual_code)
+        row.addWidget(self.manual_input, 1)
+
 
         self.btn_manual = QPushButton("Use code")
         self.btn_manual.setObjectName("small")
@@ -431,11 +444,10 @@ class CheckoutTerminal(QMainWindow):
 
     @staticmethod
     def clean_total(value):
-        """Return a usable basket total, or None if it is not money the kiosk takes.
-
-        db.charge() rejects these too, but the button must never offer to charge
-        an amount the database is going to refuse.
-        """
+        # Return a usable basket total, or None if it is not money the kiosk takes.
+        #
+        # the button must never offer to charge
+        # an amount the database is going to refuse.
         try:
             total = float(value)
         except (TypeError, ValueError):
@@ -447,15 +459,18 @@ class CheckoutTerminal(QMainWindow):
         return total
 
     def on_amount_typed(self, text):
-        """Let a typed total stand in for one the basket code did not carry."""
+        # Let a typed total stand in for one the basket code did not carry.
         text = text.strip()
-        # A half-typed box is not an error yet, so this only clears the total.
-        self.basket_total = self.clean_total(text) if text else None
+        # A halftyped box is not an error yet, so this only clears the total.
+        if text:
+            self.basket_total = self.clean_total(text)
+        else:
+            self.basket_total = None
         self.refresh_basket_row()
         self.refresh_state()
 
     def refresh_basket_row(self):
-        """Redraw the basket line from the current code and total."""
+        # Redraw the basket line from the current code and total.
         if not self.basket_code:
             self.qr_row.set_state("idle", "No code scanned")
             return
@@ -474,7 +489,11 @@ class CheckoutTerminal(QMainWindow):
         # 
 
         display = cv2.flip(frame, 1)                       # mirror for the customer
-        colour = (151, 220, 61) if self.is_live else (65, 180, 242)  # BGR mint / amber
+        # OpenCV wants BGR, so these are GREEN and MUTED with the bytes swapped.
+        if self.is_live:
+            colour = (74, 107, 63)
+        else:
+            colour = (110, 110, 110)
         draw_reticle(display, colour)
 
         rgb = np.ascontiguousarray(cv2.cvtColor(display, cv2.COLOR_BGR2RGB))
@@ -490,17 +509,27 @@ class CheckoutTerminal(QMainWindow):
 
         # A total printed on the code wins; otherwise fall back on the typed one.
         # A code carrying a nonsense total is treated as carrying none at all.
-        checked = self.clean_total(total) if total is not None else None
+        if total is not None:
+            checked = self.clean_total(total)
+        else:
+            checked = None
         if checked is not None:
             self.basket_total = checked
             self.amount_input.setText(f"{checked:.2f}")
         elif total is not None:
             self.log(f"Ignoring the total printed on {self.basket_code}: {total} is not a valid amount.")
 
-        source = "entered manually" if manual else "scanned"
-        self.log(f"Basket {self.basket_code} {source}"
-                 + (f" — total {self.basket_total:.2f}" if self.basket_total is not None
-                    else " — no total on the code, type one"))
+        if manual:
+            source = "entered manually"
+        else:
+            source = "scanned"
+
+        if self.basket_total is not None:
+            total_text = f" — total {self.basket_total:.2f}"
+        else:
+            total_text = " — no total on the code, type one"
+
+        self.log(f"Basket {self.basket_code} {source}{total_text}")
         self.refresh_basket_row()
         self.refresh_state()
 
@@ -526,7 +555,7 @@ class CheckoutTerminal(QMainWindow):
         self.refresh_state()
 
     def on_identity(self, match):
-        """A face won enough votes — load that account and log the shopper in."""
+        # A face won enough votes — load that account and log the shopper in.
         if self.account is not None or not match:
             return
 
@@ -542,12 +571,16 @@ class CheckoutTerminal(QMainWindow):
         self.account = customer
         confidence = match.get("confidence")
         self.show_account()
-        self.log(f"Recognised {customer['name']} (account #{customer['id']}"
-                 + (f", {confidence:.0%} confidence)" if confidence is not None else ")"))
+        if confidence is not None:
+            confidence_text = f", {confidence:.0%} confidence)"
+        else:
+            confidence_text = ")"
+
+        self.log(f"Recognised {customer['name']} (account #{customer['id']}{confidence_text}")
         self.refresh_state()
 
     def show_account(self):
-        """Put the logged-in shopper and their remaining credit on screen."""
+        # Put the logged-in shopper and their remaining credit on screen.
         if self.account is None:
             self.account_row.set_state("idle", "Not recognised")
             return
@@ -555,13 +588,17 @@ class CheckoutTerminal(QMainWindow):
         balance = db.format_money(self.account["balance_cents"])
         short = self.basket_total is not None and \
             int(round(self.basket_total * 100)) > self.account["balance_cents"]
-        state = "bad" if short else "ok"
-        suffix = "   ·   not enough credit" if short else ""
+        if short:
+            state = "bad"
+            suffix = "   ·   not enough credit"
+        else:
+            state = "ok"
+            suffix = ""
         self.account_row.set_state(state, f"{self.account['name']}   ·   {balance}{suffix}")
 
     # enrolment
     def start_enrolment(self):
-        """Ask the worker for a clean encoding of whoever is at the camera."""
+        # Ask the worker for a clean encoding of whoever is at the camera.
         if not self.camera_ok:
             return
         self.btn_enrol.setEnabled(False)
@@ -612,7 +649,7 @@ class CheckoutTerminal(QMainWindow):
 
     # state
     def refresh_state(self):
-        """Work out what is still missing and say so, in the order it is needed."""
+        # Work out what is still missing and say so, in the order it is needed.
         self.show_account()   # balance colouring depends on the current basket total
 
         has_credit = (
@@ -627,9 +664,11 @@ class CheckoutTerminal(QMainWindow):
         self.btn_enrol.setVisible(self.camera_ok and self.is_live and self.account is None)
 
         if self.account is not None:
-            self.btn_finish.setText(
-                f"Pay {db.format_money(int(round(self.basket_total * 100)))} from credit"
-                if self.basket_total is not None else "Complete checkout")
+            if self.basket_total is not None:
+                self.btn_finish.setText(
+                    f"Pay {db.format_money(int(round(self.basket_total * 100)))} from credit")
+            else:
+                self.btn_finish.setText("Complete checkout")
         else:
             self.btn_finish.setText("Complete checkout")
 
@@ -654,15 +693,15 @@ class CheckoutTerminal(QMainWindow):
             self._repolish(self.banner)
 
     def complete_checkout(self):
-        """Take the basket total out of the recognised shopper's stored credit."""
+        # Take the basket total out of the recognised shopper's stored credit.
         if self.account is None or self.basket_total is None:
-            return  # the button should already be disabled, but never trust that
+            return  # the button should already be disabled, but never trust oit
 
         try:
             result = db.charge(self.account["id"], self.basket_total, self.basket_code)
         except db.InsufficientCredit as error:
             self.log(f"Declined: {error}")
-            self.account = db.get_customer(self.account["id"])  # re-read the true balance
+            self.account = db.get_customer(self.account["id"])  # reread the true balance
             self.show_account()
             self.refresh_state()
             return
@@ -702,116 +741,82 @@ class CheckoutTerminal(QMainWindow):
 
     def closeEvent(self, event):
         self.worker.stop()
-        self.worker.wait(2000)
+        self.worker.wait(WORKER_SHUTDOWN_MS)
         event.accept()
 
 # Style sheet css for the whole terminal. Qt doesn't support CSS variables, so we use Python f strings to inject our palette colors.
+# system fonts may not exist on windows than mac.
 STYLESHEET = f"""
 QWidget {{
-    font-family: "Inter", "Segoe UI", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; 
     font-size: 14px;
     color: {TEXT};
 }}
 QWidget#root {{ background: {INK}; }}
 
-QLabel#h1 {{ font-size: 24px; font-weight: 600; letter-spacing: -0.3px; }}
-QLabel#h2 {{ font-size: 15px; font-weight: 600; color: {MUTED}; }}
-QLabel#caption {{ font-size: 11px; font-weight: 600; letter-spacing: 1.4px; color: {MUTED}; }}
-QLabel#value {{ font-size: 15px; font-weight: 500; }}
+QLabel#h1 {{ font-size: 20px; font-weight: bold; }}
+QLabel#h2 {{ font-size: 14px; color: {MUTED}; }}
+QLabel#caption {{ font-size: 11px; color: {MUTED}; }}
+QLabel#testCaption {{ font-size: 11px; color: {MUTED}; }}
+QLabel#value {{ font-size: 14px; }}
 QLabel#hint {{ color: {MUTED}; }}
+QLabel#video {{ color: {MUTED}; }}
 
 QFrame#card {{
     background: {PANEL};
     border: 1px solid {LINE};
-    border-radius: 14px;
 }}
 QFrame#videoShell {{
-    background: #0A0D12;
+    background: {SHELL};
     border: 1px solid {LINE};
-    border-radius: 16px;
 }}
 QFrame#testCard {{
-    background: transparent;
-    border: 1px dashed #3A4150;
-    border-radius: 14px;
+    background: {PANEL};
+    border: 1px dashed {LINE};
 }}
-QLabel#testCaption {{
-    font-size: 10px; font-weight: 700; letter-spacing: 1.6px; color: #6E7889;
-}}
+
 QLineEdit {{
-    background: #10141B;
+    background: {PANEL};
     border: 1px solid {LINE};
-    border-radius: 10px;
-    padding: 0 12px;
+    padding: 0 8px;
     color: {TEXT};
-    font-family: "JetBrains Mono", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
-    selection-background-color: {MINT};
-    selection-color: #06231A;
 }}
-QLineEdit:focus {{ border: 1px solid {MINT}; }}
-QPushButton#small {{
-    background: #222936;
-    border: none;
-    border-radius: 10px;
-    padding: 0 16px;
-    color: {TEXT};
-    font-weight: 600;
-}}
-QPushButton#small:hover {{ background: #2C3441; }}
-QLabel#video {{ color: {MUTED}; font-size: 15px; }}
 
 QLabel#banner {{
-    padding: 16px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 1.8px;
+    padding: 14px;
+    font-weight: bold;
     background: {PANEL};
     border: 1px solid {LINE};
     color: {MUTED};
 }}
-QLabel#banner[tone="wait"] {{ color: {AMBER};  border-color: #4A3A16; background: #221B0E; }}
-QLabel#banner[tone="ok"]   {{ color: {MINT};   border-color: #1B4D38; background: #0E2119; }}
-QLabel#banner[tone="bad"]  {{ color: {CORAL};  border-color: #4E2320; background: #211110; }}
+QLabel#banner[tone="wait"] {{ color: {BROWN}; }}
+QLabel#banner[tone="ok"]   {{ color: {GREEN}; }}
+QLabel#banner[tone="bad"]  {{ color: {RED}; }}
 
-QProgressBar {{ background: {LINE}; border: none; border-radius: 3px; }}
-QProgressBar::chunk {{ background: {MINT}; border-radius: 3px; }}
+QProgressBar {{ background: #DEDEDE; border: none; }}
+QProgressBar::chunk {{ background: #9E9E9E; }}
 
 QPlainTextEdit {{
     background: {PANEL};
     border: 1px solid {LINE};
-    border-radius: 12px;
-    padding: 10px;
-    color: #AEB7C6;
-    font-family: "JetBrains Mono", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+    padding: 6px;
+    color: {TEXT};
     font-size: 12px;
 }}
 
-QPushButton#primary {{
-    background: {MINT};
-    color: #06231A;
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 700;
-}}
-QPushButton#primary:hover {{ background: #56E5A9; }}
-QPushButton#primary:disabled {{ background: #1C222C; color: #55606F; }}
-
-QPushButton#ghost {{
-    background: transparent;
+QPushButton {{
+    background: #E4E4E4;
     border: 1px solid {LINE};
-    border-radius: 12px;
-    color: #C2CAD8;
-    font-weight: 600;
+    padding: 0 14px;
+    color: {TEXT};
 }}
-QPushButton#ghost:hover {{ background: #1B212B; }}
-QPushButton:focus {{ outline: none; border: 1px solid {MINT}; }}
+QPushButton#primary {{ font-weight: bold; }}
+QPushButton:disabled {{ background: #ECECEC; color: #A6A6A6; }}
 """
 
 
 def main():
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True) #to prevent the user interface from looking tiny, blurry, or pixelated, added for my laptop.
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     # font may not exist on all platforms however qt would fallback
