@@ -35,80 +35,6 @@ Invalid cases
 23 passed, 0 failed
 
 ============================================================
-test_face_engine.py
-============================================================
-
-Expected cases
-  PASS  a pipe separated code splits into code and total
-  PASS  a JSON code splits into code and total
-  PASS  a code with no total returns the code alone
-  PASS  surrounding whitespace is stripped
-  PASS  a moving mouth is accepted as live
-  PASS  a static face is rejected
-  PASS  one vote short of the threshold locks nobody in
-  PASS  the deciding vote locks the account in
-
-Boundary cases
-  PASS  5 frames is still collecting
-  PASS  6 frames is enough to decide
-  PASS  movement just under the threshold is rejected
-  PASS  movement just over the threshold is accepted
-  PASS  the window holds at most 12 frames
-  PASS  a verified customer stays verified when they stop moving
-  PASS  a blink is recorded
-  PASS  votes split between two faces lock nobody in
-  PASS  the first face to reach the threshold wins
-  PASS  the shopper is locked in before they leave
-  PASS  a single missed frame does not drop the shopper
-  PASS  an absent face is released after the hold expires
-
-Invalid cases
-  PASS  an empty payload yields no code and no total
-  PASS  a missing payload yields no code and no total
-  PASS  whitespace only yields no code and no total
-  PASS  malformed JSON is kept as a plain code with no total
-  PASS  a non-numeric total after the separator is dropped
-  PASS  a second separator makes the total unreadable, so it is dropped
-  PASS  a JSON total that is not a number is dropped
-  PASS  a tracker that has seen no frames is not live
-  PASS  reset clears a verified pass for the next customer
-  PASS  frames with no match never lock an account in
-  PASS  matching against an empty account list returns nothing
-
-31 passed, 0 failed
-
-============================================================
-test_scanner.py
-============================================================
-
-Expected cases
-  PASS  a code on its own is decoded
-  PASS  a pipe separated code and total is decoded
-  PASS  a JSON payload is decoded
-  PASS  a code held in the middle of a camera frame is decoded
-
-Boundary cases
-  PASS  held close to the camera (60% of the frame)
-  PASS  held far from the camera (12% of the frame)
-  PASS  held at a 15 degree angle
-  PASS  held upside down
-  PASS  slightly out of focus
-  PASS  dim lighting (35% brightness)
-  PASS  a long payload still decodes
-
-Invalid cases
-  PASS  an empty frame decodes to nothing
-  PASS  random camera noise decodes to nothing
-  PASS  a half covered code decodes to nothing
-
-Full pipeline: scan then parse
-  PASS  a scanned pipe code parses into code and total
-  PASS  a scanned JSON code parses into code and total
-  PASS  a scanned plain code parses with no total
-
-17 passed, 0 failed
-
-============================================================
 test_checkout_flow.py
 ============================================================
 
@@ -133,6 +59,14 @@ Boundary cases
   PASS  banner asks for the total
   PASS  a typed total unblocks payment
 
+Top up vouchers
+  PASS  a voucher with nobody recognised adds nothing
+  PASS  a voucher adds credit to the recognised shopper
+  PASS  the new balance is shown
+  PASS  a voucher over the kiosk limit is refused
+  PASS  a negative voucher is refused
+  PASS  an ordinary basket code still works after a voucher
+
 Invalid cases
   PASS  a non-numeric total is not accepted
   PASS  a negative total is not accepted
@@ -140,8 +74,8 @@ Invalid cases
   PASS  sign up with no clear face is refused
   PASS  a match on a deleted account does not log anyone in
 
-22 passed, 0 failed
+28 passed, 0 failed
 
 ============================================================
-TOTAL: 93 passed, 0 failed
+TOTAL: 51 passed, 0 failed
 ============================================================
