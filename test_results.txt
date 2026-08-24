@@ -1,0 +1,147 @@
+
+============================================================
+test_db.py
+============================================================
+
+Expected cases
+  PASS  new account starts on the signup balance
+  PASS  charging 12.35 leaves 7.65
+  PASS  money formats back to dollars
+  PASS  top up adds credit
+  PASS  transactions are recorded
+  PASS  both accounts load for matching
+  PASS  encoding survives the round trip
+
+Boundary cases
+  PASS  spending the exact balance is allowed
+  PASS  spending 1c more than the balance -> rejected (Basket is $0.01 but the account only holds $0.00)
+  PASS  one cent is charged exactly
+  PASS  float rounding does not lose a cent
+  PASS  shortest allowed name is accepted
+  PASS  longest allowed name is accepted
+  PASS  a transaction over the kiosk limit -> rejected (Amount is above the $500.00 kiosk limit)
+
+Invalid cases
+  PASS  a name that is too short -> rejected (Name must be at least 2 characters)
+  PASS  a name that is too long -> rejected (Name must be at most 64 characters)
+  PASS  an encoding of the wrong length -> rejected (Face encoding must be 128 values, got (64,))
+  PASS  a negative amount -> rejected (Amount Must be greater than zero)
+  PASS  a zero amount -> rejected (Amount Must be greater than zero)
+  PASS  an amount that is not a number -> rejected (Amount is not a number.)
+  PASS  an unknown account id -> rejected (No account with id 9999)
+  PASS  looking up an account that does not exist -> rejected (No account with id 9999)
+  PASS  a rejected charge leaves the balance untouched
+
+23 passed, 0 failed
+
+============================================================
+test_face_engine.py
+============================================================
+
+Expected cases
+  PASS  a pipe separated code splits into code and total
+  PASS  a JSON code splits into code and total
+  PASS  a code with no total returns the code alone
+  PASS  surrounding whitespace is stripped
+  PASS  a moving mouth is accepted as live
+  PASS  a static face is rejected
+  PASS  one vote short of the threshold locks nobody in
+  PASS  the deciding vote locks the account in
+
+Boundary cases
+  PASS  5 frames is still collecting
+  PASS  6 frames is enough to decide
+  PASS  movement just under the threshold is rejected
+  PASS  movement just over the threshold is accepted
+  PASS  the window holds at most 12 frames
+  PASS  a verified customer stays verified when they stop moving
+  PASS  a blink is recorded
+  PASS  votes split between two faces lock nobody in
+  PASS  the first face to reach the threshold wins
+  PASS  the shopper is locked in before they leave
+  PASS  a single missed frame does not drop the shopper
+  PASS  an absent face is released after the hold expires
+
+Invalid cases
+  PASS  an empty payload yields no code and no total
+  PASS  a missing payload yields no code and no total
+  PASS  whitespace only yields no code and no total
+  PASS  malformed JSON is kept as a plain code with no total
+  PASS  a non-numeric total after the separator is dropped
+  PASS  a second separator makes the total unreadable, so it is dropped
+  PASS  a JSON total that is not a number is dropped
+  PASS  a tracker that has seen no frames is not live
+  PASS  reset clears a verified pass for the next customer
+  PASS  frames with no match never lock an account in
+  PASS  matching against an empty account list returns nothing
+
+31 passed, 0 failed
+
+============================================================
+test_scanner.py
+============================================================
+
+Expected cases
+  PASS  a code on its own is decoded
+  PASS  a pipe separated code and total is decoded
+  PASS  a JSON payload is decoded
+  PASS  a code held in the middle of a camera frame is decoded
+
+Boundary cases
+  PASS  held close to the camera (60% of the frame)
+  PASS  held far from the camera (12% of the frame)
+  PASS  held at a 15 degree angle
+  PASS  held upside down
+  PASS  slightly out of focus
+  PASS  dim lighting (35% brightness)
+  PASS  a long payload still decodes
+
+Invalid cases
+  PASS  an empty frame decodes to nothing
+  PASS  random camera noise decodes to nothing
+  PASS  a half covered code decodes to nothing
+
+Full pipeline: scan then parse
+  PASS  a scanned pipe code parses into code and total
+  PASS  a scanned JSON code parses into code and total
+  PASS  a scanned plain code parses with no total
+
+17 passed, 0 failed
+
+============================================================
+test_checkout_flow.py
+============================================================
+
+Expected cases
+  PASS  an unknown live face is offered sign up
+  PASS  banner asks the shopper to sign up
+  PASS  recognised shopper is logged in
+  PASS  their credit is shown
+  PASS  sign up is hidden once logged in
+  PASS  basket total is read off the code
+  PASS  terminal is ready to pay
+  PASS  pay button shows the amount
+  PASS  credit is debited in the database
+  PASS  terminal clears for the next customer
+
+Boundary cases
+  PASS  a basket equal to the balance is allowed
+  PASS  balance lands exactly on zero
+  PASS  one cent over the balance is refused
+  PASS  banner explains why
+  PASS  a code with no total blocks payment
+  PASS  banner asks for the total
+  PASS  a typed total unblocks payment
+
+Invalid cases
+  PASS  a non-numeric total is not accepted
+  PASS  a negative total is not accepted
+  PASS  paying with nobody logged in does nothing
+  PASS  sign up with no clear face is refused
+  PASS  a match on a deleted account does not log anyone in
+
+22 passed, 0 failed
+
+============================================================
+TOTAL: 93 passed, 0 failed
+============================================================

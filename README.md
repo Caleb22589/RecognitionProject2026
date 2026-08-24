@@ -14,8 +14,32 @@ I like this idea as i want to experiment if truely just cameras on a phone or la
 
 ```
 pip install -r requirements.txt
-python3 main.py          # the kiosk
-python3 run_tests.py     # all four test suites
+python main.py          # the kiosk
+python run_tests.py     # all four test suites
+```
+
+Runs on Windows, macOS and Linux — all file paths are built with `os.path.join`
+and the camera backend is chosen per platform. Two dependencies need extra steps
+on Windows:
+
+**pyzbar** needs the Visual C++ Redistributable for Visual Studio 2013
+(`vcredist_x64.exe`). Without it the import fails with
+`Unable to find zbar shared library`, even though pip reported success.
+
+**dlib** (which `face-recognition` depends on) compiles from source, so a plain
+`pip install` needs CMake and the Visual Studio C++ build tools. The easier route
+is a prebuilt wheel matching your Python version, installed before the
+requirements file:
+
+```
+pip install dlib-bin
+pip install -r requirements.txt
+```
+
+Check the install worked before running the kiosk:
+
+```
+python -c "import cv2, dlib, mediapipe, pyzbar.pyzbar, PyQt5; print('all ok')"
 ```
 
 ## Project layout

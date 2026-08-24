@@ -4,12 +4,10 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "kiosk.db")
 
-# ---- Face matching ----
 # 0.6 is the face_recognition default; lower = stricter.
 FACE_MATCH_TOLERANCE = 0.5
 
-# ---- Liveness (anti-spoofing) ----
-# We track the Mouth Aspect Ratio (MAR) across a rolling buffer of frames.
+#  track the Mouth Aspect Ratio (MAR) across a rolling buffer of frames.
 # A printed/static photo has a nearly constant MAR; a live person's lips move.
 LIVENESS_FRAME_WINDOW = 12        # frames kept per checkout session
 LIVENESS_MIN_FRAMES = 6           # need at least this many before deciding
@@ -21,7 +19,6 @@ LIVENESS_REQUIRE_BLINK = False    # optionally also require a blink
 SIGNUP_BONUS = 20.00              # starting wallet balance for new accounts
 CURRENCY = "$"
 
-# ---- Identity stabilisation (kiosk) ----
 # The kiosk must recognise the SAME person in at least IDENTITY_MIN_VOTES of the
 # last IDENTITY_WINDOW frames before locking the account in. This stops the
 # name from flickering on/off on a single good/bad frame.
@@ -41,13 +38,10 @@ RECOGNISE_EVERY_N_FRAMES = 8
 # scanner also runs on every Nth frame rather than on all of them.
 QR_EVERY_N_FRAMES = 3
 
-# ---- Camera ----
 CAMERA_INDEX = 0                  # 0 is the built in webcam on most laptops
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 CAMERA_RETRY_MS = 30              # pause before retrying after a dropped frame
-
-# ---- Window ----
 WINDOW_WIDTH = 1180
 WINDOW_HEIGHT = 720
 LOG_MAX_LINES = 300               # activity log keeps only the most recent lines

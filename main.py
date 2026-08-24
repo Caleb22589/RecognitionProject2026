@@ -116,7 +116,10 @@ class VisionWorker(QThread):
         return known
 
     def run(self):
-        cap = cv2.VideoCapture(self.cam_index)
+        if sys.platform == "win32":
+            cap = cv2.VideoCapture(self.cam_index, cv2.CAP_DSHOW)
+        else:
+            cap = cv2.VideoCapture(self.cam_index)
         if not cap.isOpened():
             self.failed.emit(f"No camera on index {self.cam_index}. "
                              "Connect a device and restart the terminal.")
