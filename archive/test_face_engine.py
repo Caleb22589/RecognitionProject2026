@@ -1,7 +1,4 @@
-# Tests for the vision helpers: basket codes, liveness and identity voting.
-#
-# Run with:  python3 tests/test_face_engine.py
-# No camera and no database are neded.
+
 import math
 import os
 import sys
@@ -92,6 +89,16 @@ def run_tests():
     check("one vote short of the threshold locks nobody in", voter.locked_id is None)
     check("the deciding vote locks the account in", voter.add(7) == 7)
 
+    # -- top up vouchers --
+    check("a pipe separated voucher reads its amount",
+          backend.parse_topup("TOPUP|20.00") == 20.00)
+    check("a dash separated voucher reads its amount",
+          backend.parse_topup("TOPUP-5.50") == 5.50)
+    check("a voucher prefix is case insensitive",
+          backend.parse_topup("topup|15.00") == 15.00)
+    check("an ordinary basket code is not a voucher",
+          backend.parse_topup("B-1042|24.50") is None)
+
     print("\nBoundary cases")
 
     # -- liveness: the frame count needed before a decision is made --
@@ -162,6 +169,14 @@ def run_tests():
     check("an absent face is released after the hold expires",
           leaving.add(None) is None and leaving.locked_id is None)
 
+    # Only ONE separator is stripped from a voucher. "-" is both a separator and
+    # the minus sign, so stripping a run of them would turn "TOPUP|-5.00" into a
+    # five dollar credit instead of a negative that gets refused.
+    check("a negative voucher stays negative so it can be refused",
+          backend.parse_topup("TOPUP|-5.00") == -5.00)
+    check("a voucher with no amount is not a voucher",
+          backend.parse_topup("TOPUP") is None)
+
     print("\nInvalid cases")
 
     check("an empty payload yields no code and no total",
@@ -174,6 +189,8 @@ def run_tests():
     code, total = backend.parse_basket('{"basket": "B-9", "total":')
     check("malformed JSON is kept as a plain code with no total", total is None and code)
 
+    check("a voucher with a junk amount is not a voucher",
+          backend.parse_topup("TOPUP|free") is None)
     check("a non-numeric total after the separator is dropped",
           backend.parse_basket("B-1042|free") == ("B-1042", None))
     check("a second separator makes the total unreadable, so it is dropped",

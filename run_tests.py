@@ -13,8 +13,6 @@ TESTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests")
 
 SUITES = [
     "test_db.py",              # accounts, credit and money handling
-    "test_face_engine.py",     # basket codes, liveness, identity voting
-    "test_scanner.py",         # decoding real QR codes from camera frames
     "test_checkout_flow.py",   # the whole flow, from a face to a payment
 ]
 

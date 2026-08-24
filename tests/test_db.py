@@ -6,9 +6,7 @@ import os
 import sys
 import tempfile
 
-# The tests live in tests/, one level below the modules they import, so the
-# project root has to go on the import path before config, db, face_engine or
-# main can be found.
+ 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
