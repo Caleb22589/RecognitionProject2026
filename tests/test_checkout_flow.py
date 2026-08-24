@@ -100,6 +100,32 @@ def run_tests():
     terminal.amount_input.setText("2.00")
     check("a typed total unblocks payment", terminal.btn_finish.isEnabled())
 
+    print("\nTop up vouchers")
+    terminal.reset("next")
+    before = db.get_customer(alice["id"])["balance_cents"]
+    terminal.on_qr("TOPUP|20.00")
+    check("a voucher with nobody recognised adds nothing",
+          db.get_customer(alice["id"])["balance_cents"] == before)
+
+    look_at_camera(terminal, alice["id"])
+    terminal.on_qr("TOPUP|20.00")
+    check("a voucher adds credit to the recognised shopper",
+          db.get_customer(alice["id"])["balance_cents"] == before + 2000)
+    check("the new balance is shown", "$" in terminal.account_row.value.text())
+
+    topped_up = db.get_customer(alice["id"])["balance_cents"]
+    terminal.on_qr(f"TOPUP|{config.MAX_TOPUP_DOLLARS + 1:.2f}")
+    check("a voucher over the kiosk limit is refused",
+          db.get_customer(alice["id"])["balance_cents"] == topped_up)
+
+    terminal.on_qr("TOPUP|-5.00")
+    check("a negative voucher is refused",
+          db.get_customer(alice["id"])["balance_cents"] == topped_up)
+
+    terminal.on_qr("B-2000|1.00")
+    check("an ordinary basket code still works after a voucher",
+          terminal.basket_total == 1.00)
+
     print("\nInvalid cases")
     terminal.amount_input.setText("abc")
     check("a non-numeric total is not accepted", not terminal.btn_finish.isEnabled())
