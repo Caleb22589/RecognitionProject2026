@@ -84,6 +84,35 @@ These are ideas for the project, **not built yet**:
 - **Barcode item lookup.** The scanner already decodes real barcodes (EAN-13, Code128, QR), but it only reads a basket code and total. It could instead search an international barcode database to retrieve the exact item.
 - **Local price prediction.** To reduce the use of the internet, a price algorithm or AI that would predict how much an item should cost in theory. So if it was a bag of doritos it would think a fair price to pay is $3.50, and maybe when stock is low increase the price. If AI controlled the price, it would be way smarter in balancing user experience vs actual profits in a real situation.
 
+I like this idea as i want to experiment if truely just cameras on a phone/ or laptop are enough to replace dedicated self checkouts all together, and make things more seamless.
+
+## How it works.
+
+IT takes a frame from the webcam and converts it from OpenCV's BGR colour order to RGB, which face_recognition and MediaPipe require.
+A blink is detected when EAR drops below a threshold and recorded ( seen with opening and closing mouth), but it's currently switched off as a requirement (LIVENESS_REQUIRE_BLINK = False) only mouth movement decides liveness and Enabling it is a one-line change.
+For identification, face_recognition detects the face and produces a 128-number encoding of it. That encoding is compared against every stored encoding, and the closest match within the tolerance is returned as the user.
+
+For liveness, MediaPipe Face Mesh returnslandmark points on the face. From fixed landmark indices I calculate two ratios: the mouth aspect ratio (mouth height ÷ width) and the eye aspect ratio (eye height ÷ width). These are collected certain window of webcam frames.
+
+The check uses the variance of the MAR rather than its average, because resting mouth shape differs between people, variance measures whether the value is changing, not what it is. A live face constantly moves, so its variance is above the threshold. 
+
+Right now, only the MAR work, so subject would have to open mouth in order to verify a transaction, a easy no contact gesture in order to verify liveness.
+
+A photo held to the camera gives an identical value every frame, so its variance is near zero and it fails. A blink is also "required", detected when the EAR drops below a threshold. Only if both pass is the face marked live, and that result isn't re-tested during the same transaction. Then transaction is allowed to proceed
+Usually only works if mouth is open.
+
+
+## Testing
+
+added testing in order to make it easier to test parts of my code, for example the database and qr code systems. Also best for debuggingwhen packages dont work sometimes, and testing new modules.
+
+## Improvements/ Possible extensions
+
+
+However for price to reduce the use of the internet, by using a price algorithm or AI that would predict how much a item should cost in theory. So if it was a bag of doritos it would think a fair price to pay is $3.5 and maybe when stock is low increase the price. If AI controlled the price, it would be way smarter in balancing user experience vs actual profits in a real situation.
+
+So user can theoretically just show face until it verifies its real and then scan item and then just walk off if transaction completed successfully. Removing the absolute friction of a low value self checkout process (like foods). High value purcahses should require more verification in practice
+Using mouth to verify transaction is kinda weird so calculate both EAR first and MAR as backup or altogether to make it more seamless
 ## Modules used
 
 I have mainly used PyQt5 for the GUI, as its faster than other alternatives like tkinter, however does have disadvantages of its very inefficient way of creating elements (takes atleast 5 lines to create one button), so I made a `StatusRow` class that makes it simpler to add UI elements to my interface.
