@@ -25,6 +25,10 @@ A photo held to the camera gives an identical value every frame, so its variance
 Usually only works if mouth is open.
 
 
+## Testing
+
+added testing in order to make it easier to test parts of my code, for example the database and qr code systems. Also best for debuggingwhen packages dont work sometimes, and testing new modules.
+
 ## Improvements/ Possible extensions
 
 
