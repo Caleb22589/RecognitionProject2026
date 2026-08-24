@@ -46,3 +46,9 @@ WINDOW_WIDTH = 1180
 WINDOW_HEIGHT = 720
 LOG_MAX_LINES = 300               # activity log keeps only the most recent lines
 WORKER_SHUTDOWN_MS = 2000         # how long to wait for the camera thread to stop
+
+# ---- Top up vouchers ----
+# A voucher is a printed code the shop sells, e.g. "TOPUP|20.00". Scanning one
+# adds credit to the recognised shopper instead of taking a payment.
+TOPUP_PREFIX = "TOPUP"
+MAX_TOPUP_DOLLARS = 200.00

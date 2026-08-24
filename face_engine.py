@@ -250,6 +250,37 @@ def recognise(bgr_img: np.ndarray, known_dict: dict) -> Optional[dict]:
     return identify(encoding, known_dict)
 
 
+# top up vouchers
+def parse_topup(payload: str) -> Optional[float]:
+    # Recognise a top up voucher and return what it is worth in dollars, or None
+    # if this code is not a voucher at all.
+    #
+    # A voucher is the basket code format with a reserved prefix instead of a
+    # basket number, so the same scanner reads both:
+    #     TOPUP|20.00
+    #     TOPUP-20.00
+    #     TOPUP 20.00
+    text = (payload or "").strip()
+    if not text:
+        return None
+
+    if not text.upper().startswith(config.TOPUP_PREFIX):
+        return None
+
+    # Whatever follows the prefix and its separator is the amount. Exactly one
+    # separator is removed, not a run of them: "-" is both a valid separator and
+    # the minus sign, so stripping every leading "-" would silently turn the
+    # voucher "TOPUP|-5.00" into a five dollar credit.
+    amount_text = text[len(config.TOPUP_PREFIX):]
+    if amount_text and amount_text[0] in "|-: ":
+        amount_text = amount_text[1:]
+    amount_text = amount_text.strip()
+    try:
+        return float(amount_text)
+    except ValueError:
+        return None
+
+
 # basket codes
 def parse_basket(payload: str) -> Tuple[str, Optional[float]]:
     # Split a scanned code into (basket code, total in dollars).
