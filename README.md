@@ -1,13 +1,10 @@
 Making a self checkout terminal that uses facial recognition in order to detect the user and just by the user in frame, match to database and log in automatically using their own credits
-This is mainly made for small stands or shops that don't have good internet access. All price predictions and face analysing is done locally.
+This is mainly made for small stands or shops that don't have good internet access.
 
 Also includes a barcode scanner, user can scan any item and it would automaticaly search a international barcode database in order to retrieve the exact item.
 
-.
 
-Problems are mainly security, so i added a liveness detector that if the face is moving in a realistic pattern it would mark it as verified, this is not as accurate so the indicator is just used primarily for high value transactions only (theoretically)
-
-I like this idea as i want to experiment if truely just cameras on a phone/ or laptop are enough to replace dedicated self checkouts all together, and make things more seamless.
+Problems are mainly security, so i added a liveness detector that if the face is moving in a realistic pattern it would mark it as verified, this is not as accurate so the indicator is just ideally for high value transactions only (theoretically)
 
 ## How it works.
 
@@ -21,7 +18,7 @@ The check uses the variance of the MAR rather than its average, because resting 
 
 Right now, only the MAR work, so subject would have to open mouth in order to verify a transaction, a easy no contact gesture in order to verify liveness.
 
-A photo held to the camera gives an identical value every frame, so its variance is near zero and it fails. A blink is also "required", detected when the EAR drops below a threshold. Only if both pass is the face marked live, and that result isn't re-tested during the same transaction. Then transaction is allowed to proceed
+A photo held to the camera gives an identical value every frame, so its variance is near zero and it fails. detected when the EAR drops below a threshold. Only if both pass is the face marked live, and that result isn't re-tested during the same transaction. Then transaction is allowed to proceed
 Usually only works if mouth is open.
 
 
@@ -31,6 +28,7 @@ added testing in order to make it easier to test parts of my code, for example t
 
 ## Improvements/ Possible extensions
 
+I like this idea as i want to experiment if truely just cameras on a phone/ or laptop are enough to replace dedicated self checkouts all together, and make things more seamless.
 
 However for price to reduce the use of the internet, by using a price algorithm or AI that would predict how much a item should cost in theory. So if it was a bag of doritos it would think a fair price to pay is $3.5 and maybe when stock is low increase the price. If AI controlled the price, it would be way smarter in balancing user experience vs actual profits in a real situation.
 
